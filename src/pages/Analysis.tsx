@@ -1,229 +1,219 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
-import { mockObjects } from "@/lib/mockData";
-import { categoryLabels, priorityLabels } from "@/types/object";
-import { Flame, TrendingUp, MapPin, Users, DollarSign } from "lucide-react";
-import { useState } from "react";
-import ObjectModal from "@/components/ObjectModal";
-import { TouristObject } from "@/types/object";
+import { useEffect, useState } from 'react';
+import { accommodationApi } from '@/services/api';
+import { Loader2, TrendingUp, Award, Target } from 'lucide-react';
+import type { Accommodation } from '@/types';
+import ObjectModal from '@/components/ObjectModal';
 
-const Analysis = () => {
-  const [selectedObject, setSelectedObject] = useState<TouristObject | null>(null);
-  const [modalOpen, setModalOpen] = useState(false);
+export default function Analysis() {
+  const [hotLeads, setHotLeads] = useState<Accommodation[]>([]);
+  const [stats, setStats] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [selectedObject, setSelectedObject] = useState<Accommodation | null>(
+    null
+  );
 
-  const hotObjects = mockObjects
-    .filter(obj => obj.leadPriority === "hot")
-    .sort((a, b) => b.priorityScore - a.priorityScore)
-    .slice(0, 10);
+  useEffect(() => {
+    loadAnalysis();
+  }, []);
 
-  const categoryCounts = mockObjects.reduce((acc, obj) => {
-    acc[obj.category] = (acc[obj.category] || 0) + 1;
-    return acc;
-  }, {} as Record<string, number>);
-
-  const avgMetrics = {
-    activityScore: Math.round(mockObjects.reduce((sum, obj) => sum + obj.activityScore, 0) / mockObjects.length),
-    dataCompleteness: Math.round(mockObjects.reduce((sum, obj) => sum + obj.dataCompleteness, 0) / mockObjects.length),
-    popularity: Math.round(mockObjects.reduce((sum, obj) => sum + obj.popularity, 0) / mockObjects.length),
-    commercialPotential: Math.round(mockObjects.reduce((sum, obj) => sum + obj.commercialPotential, 0) / mockObjects.length),
+  const loadAnalysis = async () => {
+    try {
+      setLoading(true);
+      const [leadsData, statsData] = await Promise.all([
+        accommodationApi.getAll({ lead_status: 'hot', limit: 10 }),
+        accommodationApi.getDashboard(),
+      ]);
+      setHotLeads(leadsData.items);
+      setStats(statsData);
+    } catch (error) {
+      console.error('Failed to load analysis:', error);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const topRegions = [
-    { name: "Алматинская область", count: 6, percentage: 75 },
-    { name: "Жамбылская область", count: 1, percentage: 12.5 },
-    { name: "Костанайская область", count: 1, percentage: 12.5 },
-  ];
-
-  const handleObjectClick = (object: TouristObject) => {
-    setSelectedObject(object);
-    setModalOpen(true);
-  };
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+      </div>
+    );
+  }
 
   return (
-    <div className="p-6 lg:p-8 space-y-8">
+    <div className="space-y-8">
+      {/* Header */}
       <div>
-        <h1 className="text-3xl font-bold mb-2">Analysis & Insights</h1>
-        <p className="text-muted-foreground">Аналитика приоритетов и метрики эффективности</p>
+        <h1 className="text-3xl font-bold text-gray-900">Analysis</h1>
+        <p className="text-gray-600 mt-1">
+          Hot leads and business intelligence
+        </p>
       </div>
 
-      {/* Top Metrics */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm text-muted-foreground">Activity Score</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-primary mb-2">{avgMetrics.activityScore}%</div>
-            <Progress value={avgMetrics.activityScore} className="h-2" />
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm text-muted-foreground">Data Completeness</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-primary mb-2">{avgMetrics.dataCompleteness}%</div>
-            <Progress value={avgMetrics.dataCompleteness} className="h-2" />
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm text-muted-foreground">Popularity</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-primary mb-2">{avgMetrics.popularity}%</div>
-            <Progress value={avgMetrics.popularity} className="h-2" />
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm text-muted-foreground">Commercial Potential</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-primary mb-2">{avgMetrics.commercialPotential}%</div>
-            <Progress value={avgMetrics.commercialPotential} className="h-2" />
-          </CardContent>
-        </Card>
-      </div>
-
-      <div className="grid lg:grid-cols-2 gap-6">
-        {/* Hot Leads */}
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle className="flex items-center gap-2">
-                <Flame className="w-5 h-5 text-secondary" />
-                Top 10 Hottest Leads
-              </CardTitle>
-              <Badge className="bg-secondary">{hotObjects.length}</Badge>
+      {/* Summary Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="bg-gradient-to-br from-red-500 to-red-600 rounded-xl shadow-lg p-6 text-white">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-red-100 text-sm font-medium">Hot Leads</p>
+              <p className="text-4xl font-bold mt-2">{stats?.hot_leads || 0}</p>
+              <p className="text-red-100 text-sm mt-1">Priority ≥ 8.0</p>
             </div>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {hotObjects.map((obj, index) => (
-              <div 
-                key={obj.id} 
-                className="flex items-start gap-3 pb-3 border-b border-border last:border-0 last:pb-0 cursor-pointer hover:bg-muted/30 p-2 rounded-lg -mx-2"
-                onClick={() => handleObjectClick(obj)}
-              >
-                <div className="w-8 h-8 rounded-full bg-secondary/10 flex items-center justify-center flex-shrink-0 font-bold text-secondary text-sm">
-                  {index + 1}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="font-medium text-sm mb-1">{obj.name}</div>
-                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                    <MapPin className="w-3 h-3" />
-                    <span className="truncate">{obj.address}</span>
-                  </div>
-                  <div className="flex items-center gap-2 mt-1">
-                    <Badge variant="outline" className="text-xs">{categoryLabels[obj.category]}</Badge>
-                    {obj.rating && (
-                      <span className="text-xs text-muted-foreground">★ {obj.rating}</span>
+            <TrendingUp className="w-12 h-12 text-red-200" />
+          </div>
+        </div>
+
+        <div className="bg-gradient-to-br from-green-500 to-green-600 rounded-xl shadow-lg p-6 text-white">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-green-100 text-sm font-medium">
+                Avg Priority
+              </p>
+              <p className="text-4xl font-bold mt-2">
+                {stats?.average_priority_score.toFixed(1) || '0.0'}
+              </p>
+              <p className="text-green-100 text-sm mt-1">Out of 10.0</p>
+            </div>
+            <Award className="w-12 h-12 text-green-200" />
+          </div>
+        </div>
+
+        <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl shadow-lg p-6 text-white">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-blue-100 text-sm font-medium">
+                Total Objects
+              </p>
+              <p className="text-4xl font-bold mt-2">
+                {stats?.total_accommodations || 0}
+              </p>
+              <p className="text-blue-100 text-sm mt-1">In database</p>
+            </div>
+            <Target className="w-12 h-12 text-blue-200" />
+          </div>
+        </div>
+      </div>
+
+      {/* Hot Leads Table */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-100">
+        <div className="px-6 py-4 border-b border-gray-200">
+          <h2 className="text-xl font-semibold text-gray-900">
+            Top Hot Leads (Priority ≥ 8.0)
+          </h2>
+          <p className="text-sm text-gray-600 mt-1">
+            These accommodations have the highest commercial potential
+          </p>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead className="bg-gray-50 border-b border-gray-200">
+              <tr>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Rank
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Name
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Type
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Priority
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Popularity
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Commercial
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Rating
+                </th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {hotLeads.map((lead, idx) => (
+                <tr
+                  key={lead.id}
+                  onClick={() => setSelectedObject(lead)}
+                  className="hover:bg-gray-50 cursor-pointer transition-colors"
+                >
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-red-100 text-red-800 font-bold text-sm">
+                      {idx + 1}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4">
+                    <div className="text-sm font-medium text-gray-900">
+                      {lead.name}
+                    </div>
+                    <div className="text-sm text-gray-500">{lead.region}</div>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <span className="px-2 py-1 text-xs font-medium rounded-full bg-purple-100 text-purple-800">
+                      {lead.accommodation_type?.replace(/_/g, ' ')}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <div className="flex items-center">
+                      <div className="flex-1">
+                        <div className="text-sm font-bold text-gray-900">
+                          {lead.priority_score.toFixed(1)}/10
+                        </div>
+                        <div className="w-full bg-gray-200 rounded-full h-2 mt-1">
+                          <div
+                            className="bg-red-500 h-2 rounded-full"
+                            style={{
+                              width: `${(lead.priority_score / 10) * 100}%`,
+                            }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm">
+                    <span className="font-semibold text-gray-900">
+                      {lead.popularity_score?.toFixed(1) || 'N/A'}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm">
+                    <span className="font-semibold text-gray-900">
+                      {lead.commercial_potential_score?.toFixed(1) || 'N/A'}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm">
+                    {lead.rating ? (
+                      <span className="text-yellow-600 font-medium">
+                        {lead.rating.toFixed(1)} ⭐
+                      </span>
+                    ) : (
+                      <span className="text-gray-400">N/A</span>
                     )}
-                  </div>
-                </div>
-                <div className="text-right flex-shrink-0">
-                  <div className="text-lg font-bold text-secondary">{obj.priorityScore.toFixed(1)}</div>
-                  <div className="text-xs text-muted-foreground">score</div>
-                </div>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
 
-        {/* Regional Distribution */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <MapPin className="w-5 h-5 text-primary" />
-              Regional Distribution
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {topRegions.map((region, index) => (
-              <div key={index}>
-                <div className="flex justify-between mb-2">
-                  <span className="text-sm font-medium">{region.name}</span>
-                  <span className="text-sm text-muted-foreground">{region.count} objects</span>
-                </div>
-                <Progress value={region.percentage} className="h-2" />
-              </div>
-            ))}
-
-            <div className="pt-4 border-t border-border">
-              <h4 className="text-sm font-medium mb-3">Category Breakdown</h4>
-              <div className="space-y-2">
-                {Object.entries(categoryCounts).map(([category, count]) => (
-                  <div key={category} className="flex items-center justify-between text-sm">
-                    <span className="text-muted-foreground">{categoryLabels[category as keyof typeof categoryLabels]}</span>
-                    <Badge variant="secondary">{count}</Badge>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        {hotLeads.length === 0 && (
+          <div className="px-6 py-12 text-center">
+            <p className="text-gray-500">
+              No hot leads found. Start scanning to discover high-priority
+              accommodations.
+            </p>
+          </div>
+        )}
       </div>
 
-      {/* Statistics Cards */}
-      <div className="grid md:grid-cols-3 gap-6">
-        <Card className="bg-gradient-to-br from-primary/5 to-primary/10 border-primary/20">
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 rounded-lg bg-primary/20 flex items-center justify-center">
-                <TrendingUp className="w-6 h-6 text-primary" />
-              </div>
-              <div>
-                <div className="text-2xl font-bold">{mockObjects.length}</div>
-                <div className="text-sm text-muted-foreground">Total Objects Found</div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-gradient-to-br from-accent/5 to-accent/10 border-accent/20">
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 rounded-lg bg-accent/20 flex items-center justify-center">
-                <Users className="w-6 h-6 text-accent" />
-              </div>
-              <div>
-                <div className="text-2xl font-bold">
-                  {mockObjects.reduce((sum, obj) => sum + obj.capacity, 0)}
-                </div>
-                <div className="text-sm text-muted-foreground">Total Capacity</div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-gradient-to-br from-secondary/5 to-secondary/10 border-secondary/20">
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 rounded-lg bg-secondary/20 flex items-center justify-center">
-                <DollarSign className="w-6 h-6 text-secondary" />
-              </div>
-              <div>
-                <div className="text-2xl font-bold">
-                  {Math.round(mockObjects.reduce((sum, obj) => sum + obj.priceRange.min, 0) / mockObjects.length / 1000)}K
-                </div>
-                <div className="text-sm text-muted-foreground">Avg Min Price (₸)</div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      <ObjectModal 
-        object={selectedObject}
-        open={modalOpen}
-        onOpenChange={setModalOpen}
-      />
+      {/* Modal */}
+      {selectedObject && (
+        <ObjectModal
+          object={selectedObject}
+          onClose={() => setSelectedObject(null)}
+        />
+      )}
     </div>
   );
-};
-
-export default Analysis;
+}

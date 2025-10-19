@@ -1,228 +1,321 @@
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Separator } from "@/components/ui/separator";
-import { TouristObject, categoryLabels, statusLabels, priorityLabels } from "@/types/object";
-import { MapPin, Phone, Mail, Globe, MessageCircle, Instagram, Calendar, Users, DollarSign, Star, Zap } from "lucide-react";
+import { X, Phone, Globe, MapPin, Star, DollarSign } from 'lucide-react';
+import type { Accommodation } from '@/types';
+import { useState } from 'react';
+import { accommodationApi } from '@/services/api';
 
 interface ObjectModalProps {
-  object: TouristObject | null;
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
+  object: Accommodation;
+  onClose: () => void;
 }
 
-const ObjectModal = ({ object, open, onOpenChange }: ObjectModalProps) => {
-  if (!object) return null;
+export default function ObjectModal({ object, onClose }: ObjectModalProps) {
+  const [outreachMessage, setOutreachMessage] = useState('');
+  const [loading, setLoading] = useState(false);
 
-  const openWhatsApp = () => {
-    if (object.contacts.whatsapp) {
-      window.open(`https://wa.me/${object.contacts.whatsapp.replace(/[^0-9]/g, '')}`, '_blank');
+  const handleGenerateOutreach = async (channel: string) => {
+    try {
+      setLoading(true);
+      const response = await accommodationApi.generateOutreach(
+        object.id,
+        channel
+      );
+      setOutreachMessage(response.message);
+    } catch (error) {
+      console.error('Failed to generate outreach:', error);
+      alert('Failed to generate outreach message');
+    } finally {
+      setLoading(false);
     }
   };
 
-  const openPhone = () => {
-    if (object.contacts.phone) {
-      window.open(`tel:${object.contacts.phone}`, '_blank');
-    }
-  };
-
-  const openWebsite = () => {
-    if (object.website) {
+  const openContact = (type: 'phone' | 'website' | 'whatsapp') => {
+    if (type === 'phone' && object.phone) {
+      window.open(`tel:${object.phone}`);
+    } else if (type === 'website' && object.website) {
       window.open(object.website, '_blank');
+    } else if (type === 'whatsapp' && object.whatsapp) {
+      window.open(`https://wa.me/${object.whatsapp}`, '_blank');
+    } else if (type === 'whatsapp' && object.phone) {
+      const cleanPhone = object.phone.replace(/[^0-9]/g, '');
+      window.open(`https://wa.me/${cleanPhone}`, '_blank');
     }
+  };
+
+  const getLeadStatusColor = (status: string) => {
+    switch (status) {
+      case 'hot':
+        return 'bg-red-100 text-red-800';
+      case 'warm':
+        return 'bg-yellow-100 text-yellow-800';
+      case 'cold':
+        return 'bg-blue-100 text-blue-800';
+      default:
+        return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  const getCategoryLabel = (type: string) => {
+    const labels: Record<string, string> = {
+      luxury_glamping: 'Люкс Глэмпинг',
+      family_guest_house: 'Семейный Гостевой Дом',
+      eco_tourism: 'Эко-туризм',
+      ethno_tourism: 'Этно-туризм',
+      mountain_house: 'Горный Домик',
+    };
+    return labels[type] || type;
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <DialogTitle className="text-2xl mb-2">{object.name}</DialogTitle>
-              <div className="flex flex-wrap gap-2">
-                <Badge variant="secondary">{categoryLabels[object.category]}</Badge>
-                <Badge variant={object.status === "verified" ? "default" : "outline"}>
-                  {statusLabels[object.status]}
-                </Badge>
-                <Badge 
-                  className={
-                    object.leadPriority === "hot" ? "bg-secondary" :
-                    object.leadPriority === "warm" ? "bg-accent" : "bg-muted"
-                  }
-                >
-                  {priorityLabels[object.leadPriority]} лид
-                </Badge>
-              </div>
-            </div>
-            <div className="text-right">
-              <div className="flex items-center gap-1 text-secondary font-bold text-xl">
-                <Zap className="w-5 h-5" />
-                {object.priorityScore.toFixed(1)}
-              </div>
-              <div className="text-xs text-muted-foreground">Priority Score</div>
-            </div>
-          </div>
-        </DialogHeader>
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+        {/* Header */}
+        <div className="sticky top-0 bg-white border-b px-6 py-4 flex items-center justify-between">
+          <h2 className="text-2xl font-bold text-gray-900">{object.name}</h2>
+          <button
+            onClick={onClose}
+            className="text-gray-400 hover:text-gray-600 transition-colors"
+          >
+            <X className="w-6 h-6" />
+          </button>
+        </div>
 
-        <div className="space-y-6 mt-4">
+        {/* Content */}
+        <div className="p-6 space-y-6">
+          {/* Status & Scores */}
+          <div className="flex items-center gap-3 flex-wrap">
+            <span
+              className={`px-3 py-1 rounded-full text-sm font-medium ${getLeadStatusColor(
+                object.lead_status
+              )}`}
+            >
+              {object.lead_status.toUpperCase()} LEAD
+            </span>
+            <span className="px-3 py-1 rounded-full text-sm font-medium bg-purple-100 text-purple-800">
+              {getCategoryLabel(object.accommodation_type)}
+            </span>
+            <span className="px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-800">
+              Priority: {object.priority_score.toFixed(1)}/10
+            </span>
+          </div>
+
           {/* Basic Info */}
-          <div>
-            <h3 className="font-semibold mb-3 flex items-center gap-2">
-              <MapPin className="w-4 h-4 text-primary" />
-              Basic Information
-            </h3>
-            <div className="space-y-2 text-sm">
-              <div className="flex gap-2">
-                <span className="text-muted-foreground min-w-32">Address:</span>
-                <span>{object.address}</span>
+          <div className="grid md:grid-cols-2 gap-6">
+            <div className="space-y-3">
+              <h3 className="font-semibold text-lg text-gray-900">
+                Basic Information
+              </h3>
+              <div className="space-y-2">
+                {object.address && (
+                  <div className="flex items-start gap-2">
+                    <MapPin className="w-5 h-5 text-gray-400 mt-0.5 flex-shrink-0" />
+                    <span className="text-gray-700">{object.address}</span>
+                  </div>
+                )}
+                {object.rating && (
+                  <div className="flex items-center gap-2">
+                    <Star className="w-5 h-5 text-yellow-400" />
+                    <span className="text-gray-700">
+                      {object.rating.toFixed(1)} ({object.review_count || 0}{' '}
+                      reviews)
+                    </span>
+                  </div>
+                )}
+                {(object.price_min || object.price_max) && (
+                  <div className="flex items-center gap-2">
+                    <DollarSign className="w-5 h-5 text-gray-400" />
+                    <span className="text-gray-700">
+                      {object.price_min?.toLocaleString()} -{' '}
+                      {object.price_max?.toLocaleString()} ₸/night
+                    </span>
+                  </div>
+                )}
               </div>
-              <div className="flex gap-2">
-                <span className="text-muted-foreground min-w-32">Coordinates:</span>
-                <span className="font-mono">{object.coordinates.lat}, {object.coordinates.lng}</span>
-              </div>
-              <div className="flex gap-2">
-                <span className="text-muted-foreground min-w-32">Capacity:</span>
-                <span className="flex items-center gap-1">
-                  <Users className="w-3 h-3" />
-                  {object.capacity} мест
-                </span>
-              </div>
-              <div className="flex gap-2">
-                <span className="text-muted-foreground min-w-32">Price Range:</span>
-                <span className="flex items-center gap-1">
-                  <DollarSign className="w-3 h-3" />
-                  {object.priceRange.min.toLocaleString()} - {object.priceRange.max.toLocaleString()} ₸
-                </span>
-              </div>
-              {object.rating && (
-                <div className="flex gap-2">
-                  <span className="text-muted-foreground min-w-32">Rating:</span>
-                  <span className="flex items-center gap-1">
-                    <Star className="w-3 h-3 fill-secondary text-secondary" />
-                    {object.rating} ({object.reviewsCount} отзывов)
-                  </span>
-                </div>
-              )}
-              <div className="flex gap-2">
-                <span className="text-muted-foreground min-w-32">Last Updated:</span>
-                <span className="flex items-center gap-1">
-                  <Calendar className="w-3 h-3" />
-                  {new Date(object.lastUpdated).toLocaleDateString('ru-RU')}
-                </span>
+            </div>
+
+            <div className="space-y-3">
+              <h3 className="font-semibold text-lg text-gray-900">
+                Scores Breakdown
+              </h3>
+              <div className="space-y-2">
+                {object.online_activity_score !== undefined && (
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Online Activity:</span>
+                    <span className="font-medium">
+                      {object.online_activity_score.toFixed(1)}/10
+                    </span>
+                  </div>
+                )}
+                {object.popularity_score !== undefined && (
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Popularity:</span>
+                    <span className="font-medium">
+                      {object.popularity_score.toFixed(1)}/10
+                    </span>
+                  </div>
+                )}
+                {object.data_completeness_score !== undefined && (
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Data Completeness:</span>
+                    <span className="font-medium">
+                      {object.data_completeness_score.toFixed(1)}/10
+                    </span>
+                  </div>
+                )}
+                {object.commercial_potential_score !== undefined && (
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">
+                      Commercial Potential:
+                    </span>
+                    <span className="font-medium">
+                      {object.commercial_potential_score.toFixed(1)}/10
+                    </span>
+                  </div>
+                )}
               </div>
             </div>
           </div>
 
-          <Separator />
-
-          {/* Description & SEO */}
-          <div>
-            <h3 className="font-semibold mb-3">Description & SEO</h3>
-            <p className="text-sm text-muted-foreground leading-relaxed">{object.description}</p>
-            
-            {object.infrastructure.length > 0 && (
-              <div className="mt-3">
-                <div className="text-xs text-muted-foreground mb-2">Infrastructure:</div>
-                <div className="flex flex-wrap gap-1">
-                  {object.infrastructure.map((item, idx) => (
-                    <Badge key={idx} variant="outline" className="text-xs">{item}</Badge>
-                  ))}
-                </div>
+          {/* SEO Description */}
+          {object.ai_generated_description && (
+            <div className="space-y-3">
+              <h3 className="font-semibold text-lg text-gray-900">
+                AI-Generated SEO Description
+              </h3>
+              <div className="bg-blue-50 rounded-lg p-4 border border-blue-100">
+                <p className="text-gray-700 leading-relaxed">
+                  {object.ai_generated_description}
+                </p>
               </div>
-            )}
-          </div>
+            </div>
+          )}
 
-          <Separator />
+          {/* Original Description */}
+          {object.description && (
+            <div className="space-y-3">
+              <h3 className="font-semibold text-lg text-gray-900">
+                Original Description
+              </h3>
+              <p className="text-gray-700 leading-relaxed">
+                {object.description}
+              </p>
+            </div>
+          )}
 
-          {/* Contacts */}
-          <div>
-            <h3 className="font-semibold mb-3">Contact Information</h3>
-            <div className="grid sm:grid-cols-2 gap-3">
-              {object.contacts.phone && (
-                <Button 
-                  variant="outline" 
-                  className="justify-start"
-                  onClick={openPhone}
+          {/* Amenities */}
+          {object.amenities && object.amenities.length > 0 && (
+            <div className="space-y-3">
+              <h3 className="font-semibold text-lg text-gray-900">
+                Amenities
+              </h3>
+              <div className="flex flex-wrap gap-2">
+                {object.amenities.map((amenity, idx) => (
+                  <span
+                    key={idx}
+                    className="px-3 py-1 bg-gray-100 text-gray-700 rounded-full text-sm"
+                  >
+                    {amenity}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Contact Buttons */}
+          <div className="space-y-3">
+            <h3 className="font-semibold text-lg text-gray-900">
+              Contact & Outreach
+            </h3>
+            <div className="flex flex-wrap gap-3">
+              {object.phone && (
+                <button
+                  onClick={() => openContact('phone')}
+                  className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
                 >
                   <Phone className="w-4 h-4" />
-                  {object.contacts.phone}
-                </Button>
+                  <span>Call Phone</span>
+                </button>
               )}
-              {object.contacts.whatsapp && (
-                <Button 
-                  variant="outline"
-                  className="justify-start bg-[#25D366]/10 hover:bg-[#25D366]/20 border-[#25D366]/20"
-                  onClick={openWhatsApp}
+              {(object.whatsapp || object.phone) && (
+                <button
+                  onClick={() => openContact('whatsapp')}
+                  className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
                 >
-                  <MessageCircle className="w-4 h-4" />
-                  WhatsApp
-                </Button>
-              )}
-              {object.contacts.email && (
-                <Button 
-                  variant="outline"
-                  className="justify-start"
-                  onClick={() => window.open(`mailto:${object.contacts.email}`, '_blank')}
-                >
-                  <Mail className="w-4 h-4" />
-                  {object.contacts.email}
-                </Button>
+                  <Phone className="w-4 h-4" />
+                  <span>WhatsApp</span>
+                </button>
               )}
               {object.website && (
-                <Button 
-                  variant="outline"
-                  className="justify-start"
-                  onClick={openWebsite}
+                <button
+                  onClick={() => openContact('website')}
+                  className="flex items-center gap-2 px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
                 >
                   <Globe className="w-4 h-4" />
-                  Website
-                </Button>
+                  <span>Visit Website</span>
+                </button>
               )}
-              {object.contacts.instagram && (
-                <Button 
-                  variant="outline"
-                  className="justify-start"
-                  onClick={() => window.open(`https://instagram.com/${object.contacts.instagram?.replace('@', '')}`, '_blank')}
+            </div>
+
+            {/* Generate Outreach */}
+            <div className="mt-4">
+              <div className="flex gap-2 mb-3">
+                <button
+                  onClick={() => handleGenerateOutreach('whatsapp')}
+                  disabled={loading}
+                  className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors disabled:opacity-50 text-sm"
                 >
-                  <Instagram className="w-4 h-4" />
-                  {object.contacts.instagram}
-                </Button>
+                  Generate WhatsApp Message
+                </button>
+                <button
+                  onClick={() => handleGenerateOutreach('email')}
+                  disabled={loading}
+                  className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50 text-sm"
+                >
+                  Generate Email
+                </button>
+              </div>
+
+              {outreachMessage && (
+                <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                  <p className="text-sm text-gray-600 mb-2 font-medium">
+                    Generated Message:
+                  </p>
+                  <p className="text-gray-700 whitespace-pre-wrap text-sm">
+                    {outreachMessage}
+                  </p>
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(outreachMessage);
+                      alert('Message copied to clipboard!');
+                    }}
+                    className="mt-3 text-sm text-blue-600 hover:text-blue-700 font-medium"
+                  >
+                    Copy to Clipboard
+                  </button>
+                </div>
               )}
             </div>
           </div>
 
-          <Separator />
-
-          {/* Analytics */}
-          <div>
-            <h3 className="font-semibold mb-3">Analytics Metrics</h3>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-              <div className="bg-muted/50 rounded-lg p-3">
-                <div className="text-xs text-muted-foreground mb-1">Activity</div>
-                <div className="text-lg font-bold text-primary">{object.activityScore}%</div>
-              </div>
-              <div className="bg-muted/50 rounded-lg p-3">
-                <div className="text-xs text-muted-foreground mb-1">Data Complete</div>
-                <div className="text-lg font-bold text-primary">{object.dataCompleteness}%</div>
-              </div>
-              <div className="bg-muted/50 rounded-lg p-3">
-                <div className="text-xs text-muted-foreground mb-1">Popularity</div>
-                <div className="text-lg font-bold text-primary">{object.popularity}%</div>
-              </div>
-              <div className="bg-muted/50 rounded-lg p-3">
-                <div className="text-xs text-muted-foreground mb-1">Commercial</div>
-                <div className="text-lg font-bold text-primary">{object.commercialPotential}%</div>
-              </div>
-              <div className="bg-muted/50 rounded-lg p-3 sm:col-span-2">
-                <div className="text-xs text-muted-foreground mb-1">Priority Score</div>
-                <div className="text-lg font-bold text-secondary">{object.priorityScore.toFixed(1)} / 10</div>
+          {/* Data Sources */}
+          {object.data_sources && object.data_sources.length > 0 && (
+            <div className="space-y-2">
+              <h3 className="font-semibold text-sm text-gray-600">
+                Data Sources
+              </h3>
+              <div className="flex gap-2">
+                {object.data_sources.map((source, idx) => (
+                  <span
+                    key={idx}
+                    className="px-2 py-1 bg-gray-100 text-gray-600 rounded text-xs"
+                  >
+                    {source}
+                  </span>
+                ))}
               </div>
             </div>
-          </div>
+          )}
         </div>
-      </DialogContent>
-    </Dialog>
+      </div>
+    </div>
   );
-};
-
-export default ObjectModal;
+}

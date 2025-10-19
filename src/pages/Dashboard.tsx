@@ -1,137 +1,176 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { mockObjects } from "@/lib/mockData";
-import { Database, TrendingUp, Users, Zap, MapPin, CheckCircle } from "lucide-react";
-import { categoryLabels } from "@/types/object";
+import { useEffect, useState } from 'react';
+import { accommodationApi } from '@/services/api';
+import StatsCard from '@/components/StatsCard';
+import {
+  Building2,
+  TrendingUp,
+  MapPin,
+  Loader2,
+  RefreshCw,
+} from 'lucide-react';
+import type { DashboardStats } from '@/types';
 
-const Dashboard = () => {
-  const totalObjects = mockObjects.length;
-  const hotLeads = mockObjects.filter(obj => obj.leadPriority === "hot").length;
-  const verifiedObjects = mockObjects.filter(obj => obj.status === "verified").length;
-  const avgPriorityScore = (mockObjects.reduce((sum, obj) => sum + obj.priorityScore, 0) / totalObjects).toFixed(1);
+export default function Dashboard() {
+  const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [scanning, setScanning] = useState(false);
 
-  const categoryCounts = mockObjects.reduce((acc, obj) => {
-    acc[obj.category] = (acc[obj.category] || 0) + 1;
-    return acc;
-  }, {} as Record<string, number>);
+  const loadStats = async () => {
+    try {
+      setLoading(true);
+      const data = await accommodationApi.getDashboard();
+      setStats(data);
+    } catch (error) {
+      console.error('Failed to load stats:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-  const recentObjects = mockObjects
-    .sort((a, b) => new Date(b.lastUpdated).getTime() - new Date(a.lastUpdated).getTime())
-    .slice(0, 5);
+  useEffect(() => {
+    loadStats();
+  }, []);
+
+  const handleStartScan = async (source: '2gis' | 'google') => {
+    try {
+      setScanning(true);
+      if (source === '2gis') {
+        await accommodationApi.startScan();
+      } else {
+        await accommodationApi.startGoogleScan();
+      }
+      alert(
+        `${source === '2gis' ? '2GIS' : 'Google Places'} scan started! Check Objects page in a few minutes.`
+      );
+    } catch (error) {
+      console.error('Failed to start scan:', error);
+      alert('Failed to start scan');
+    } finally {
+      setScanning(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+      </div>
+    );
+  }
 
   return (
-    <div className="p-6 lg:p-8 space-y-8">
-      <div>
-        <h1 className="text-3xl font-bold mb-2">Dashboard</h1>
-        <p className="text-muted-foreground">Обзор системы сбора туристических объектов</p>
+    <div className="space-y-8">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
+          <p className="text-gray-600 mt-1">
+            MyTravel AI Agent System Overview
+          </p>
+        </div>
+        <button
+          onClick={loadStats}
+          className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+        >
+          <RefreshCw className="w-4 h-4" />
+          Refresh
+        </button>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Total Objects</CardTitle>
-            <Database className="w-4 h-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold text-primary">{totalObjects}</div>
-            <p className="text-xs text-muted-foreground mt-1">+12 this week</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Hot Leads</CardTitle>
-            <Zap className="w-4 h-4 text-secondary" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold text-secondary">{hotLeads}</div>
-            <p className="text-xs text-muted-foreground mt-1">High priority contacts</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Verified</CardTitle>
-            <CheckCircle className="w-4 h-4 text-accent" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold text-accent">{verifiedObjects}</div>
-            <p className="text-xs text-muted-foreground mt-1">{((verifiedObjects/totalObjects)*100).toFixed(0)}% of total</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Avg Priority Score</CardTitle>
-            <TrendingUp className="w-4 h-4 text-primary" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold">{avgPriorityScore}</div>
-            <p className="text-xs text-muted-foreground mt-1">Out of 10</p>
-          </CardContent>
-        </Card>
+      {/* Stats Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <StatsCard
+          title="Total Accommodations"
+          value={stats?.total_accommodations || 0}
+          icon={Building2}
+          color="bg-blue-500"
+        />
+        <StatsCard
+          title="Hot Leads"
+          value={stats?.hot_leads || 0}
+          icon={TrendingUp}
+          color="bg-red-500"
+          subtitle="Priority ≥ 8.0"
+        />
+        <StatsCard
+          title="Average Priority"
+          value={stats?.average_priority_score.toFixed(1) || '0.0'}
+          icon={MapPin}
+          color="bg-green-500"
+        />
       </div>
 
-      <div className="grid lg:grid-cols-2 gap-6">
-        {/* Categories Breakdown */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Objects by Category</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {Object.entries(categoryCounts).map(([category, count]) => (
-              <div key={category} className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-2 h-2 rounded-full bg-primary" />
-                  <span className="text-sm">{categoryLabels[category as keyof typeof categoryLabels]}</span>
+      {/* Scan Actions */}
+      <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
+        <h2 className="text-xl font-semibold text-gray-900 mb-4">
+          Start Data Collection
+        </h2>
+        <div className="flex gap-4">
+          <button
+            onClick={() => handleStartScan('2gis')}
+            disabled={scanning}
+            className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
+          >
+            {scanning ? (
+              <Loader2 className="w-5 h-5 animate-spin" />
+            ) : (
+              <RefreshCw className="w-5 h-5" />
+            )}
+            Scan 2GIS
+          </button>
+          <button
+            onClick={() => handleStartScan('google')}
+            disabled={scanning}
+            className="flex items-center gap-2 px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50"
+          >
+            {scanning ? (
+              <Loader2 className="w-5 h-5 animate-spin" />
+            ) : (
+              <RefreshCw className="w-5 h-5" />
+            )}
+            Scan Google Places
+          </button>
+        </div>
+        <p className="text-sm text-gray-500 mt-3">
+          Scans run in background. Results appear in Objects page after a few
+          minutes.
+        </p>
+      </div>
+
+      {/* Regions & Types */}
+      <div className="grid md:grid-cols-2 gap-6">
+        <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">
+            By Region
+          </h3>
+          <div className="space-y-3">
+            {stats?.by_region &&
+              Object.entries(stats.by_region).map(([region, count]) => (
+                <div key={region} className="flex justify-between items-center">
+                  <span className="text-gray-700">{region || 'Unknown'}</span>
+                  <span className="font-semibold text-gray-900">{count}</span>
                 </div>
-                <Badge variant="secondary">{count}</Badge>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-
-        {/* Recent Updates */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Recent Updates</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {recentObjects.map((obj) => (
-              <div key={obj.id} className="flex items-start gap-3 pb-3 border-b border-border last:border-0 last:pb-0">
-                <MapPin className="w-4 h-4 text-muted-foreground mt-0.5 flex-shrink-0" />
-                <div className="flex-1 min-w-0">
-                  <div className="font-medium text-sm truncate">{obj.name}</div>
-                  <div className="text-xs text-muted-foreground">{new Date(obj.lastUpdated).toLocaleDateString('ru-RU')}</div>
-                </div>
-                <Badge variant={obj.status === "verified" ? "default" : "outline"} className="text-xs flex-shrink-0">
-                  {obj.status}
-                </Badge>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Quick Actions */}
-      <Card className="bg-gradient-to-br from-primary/5 to-accent/5 border-primary/20">
-        <CardContent className="pt-6">
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
-              <Users className="w-6 h-6 text-primary" />
-            </div>
-            <div className="flex-1">
-              <h3 className="font-semibold mb-1">AI Data Collection Active</h3>
-              <p className="text-sm text-muted-foreground">
-                Система автоматически собирает данные из 8+ источников. Последнее обновление: сегодня в 14:32
-              </p>
-            </div>
+              ))}
           </div>
-        </CardContent>
-      </Card>
+        </div>
+
+        <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">
+            By Type
+          </h3>
+          <div className="space-y-3">
+            {stats?.by_type &&
+              Object.entries(stats.by_type).map(([type, count]) => (
+                <div key={type} className="flex justify-between items-center">
+                  <span className="text-gray-700">
+                    {type?.replace('_', ' ') || 'Unknown'}
+                  </span>
+                  <span className="font-semibold text-gray-900">{count}</span>
+                </div>
+              ))}
+          </div>
+        </div>
+      </div>
     </div>
   );
-};
-
-export default Dashboard;
+}
